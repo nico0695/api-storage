@@ -1,0 +1,58 @@
+name: Continuous Integration-Continuous Deployment
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    name: Continuous Integration
+    steps:
+      - uses: actions/checkout@v2
+      - uses: actions/setup-node@v1
+        with:
+          node-version: 22
+      - run: npm ci
+      - run: npm run build
+
+  deploy:
+    runs-on: ubuntu-latest
+    name: Continuous Deployment
+    needs: [build]
+    steps:
+      - name: Deploy using ssh
+        uses: appleboy/ssh-action@master
+        env:
+          PORT: ${{ secrets.PORT }}
+          B2_REGION: ${{ secrets.B2_REGION }}
+          B2_ENDPOINT: ${{ secrets.B2_ENDPOINT }}
+          B2_KEY_ID: ${{ secrets.B2_KEY_ID }}
+          B2_APP_KEY: ${{ secrets.B2_APP_KEY }}
+          B2_BUCKET: ${{ secrets.B2_BUCKET }}
+        with:
+          host: ${{ secrets.SSH_HOST }}
+          username: ${{ secrets.SSH_USERNAME }}
+          password: ${{ secrets.SSH_PASSWORD }}
+          port: ${{ secrets.SSH_PORT }}
+          envs: PORT,B2_REGION,B2_ENDPOINT,B2_KEY_ID,B2_APP_KEY,B2_BUCKET
+          script: |
+            cd /app/api-storage/
+            git pull
+            docker stop api-storage || true
+            docker rm api-storage || true
+            docker volume create api_storage_data || true
+            docker build -t api-storage .
+            docker run -d --name api-storage \
+              --restart unless-stopped \
+              -p 4000:4000 \
+              -v api_storage_data:/app/data \
+              -e NODE_ENV=production \
+              -e PORT=$PORT \
+              -e B2_REGION=$B2_REGION \
+              -e B2_ENDPOINT=$B2_ENDPOINT \
+              -e B2_KEY_ID=$B2_KEY_ID \
+              -e B2_APP_KEY=$B2_APP_KEY \
+              -e B2_BUCKET=$B2_BUCKET \
+              api-storage
