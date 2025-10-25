@@ -3,7 +3,9 @@ import {
   PutObjectCommand,
   ListObjectsV2Command,
   DeleteObjectCommand,
+  GetObjectCommand,
 } from '@aws-sdk/client-s3';
+import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 import { logger } from '../utils/logger.js';
 
 export class StorageService {
@@ -69,5 +71,16 @@ export class StorageService {
 
     await this.s3Client.send(command);
     logger.info({ key }, 'File deleted from B2');
+  }
+
+  async getDownloadUrl(key: string, expiresIn: number = 3600): Promise<string> {
+    const command = new GetObjectCommand({
+      Bucket: this.bucket,
+      Key: key,
+    });
+
+    const url = await getSignedUrl(this.s3Client, command, { expiresIn });
+    logger.info({ key, expiresIn }, 'Generated download URL');
+    return url;
   }
 }

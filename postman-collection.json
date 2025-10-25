@@ -41,6 +41,18 @@
                   "type": "file",
                   "src": [],
                   "description": "Select a file to upload"
+                },
+                {
+                  "key": "customName",
+                  "value": "My Custom File Name",
+                  "type": "text",
+                  "description": "Optional custom name for the file"
+                },
+                {
+                  "key": "metadata",
+                  "value": "{\"author\": \"John Doe\", \"tags\": [\"important\", \"project\"]}",
+                  "type": "text",
+                  "description": "Optional JSON metadata"
                 }
               ]
             },
@@ -82,7 +94,7 @@
                   "value": "application/json"
                 }
               ],
-              "body": "{\n  \"id\": 1,\n  \"name\": \"example.jpg\",\n  \"key\": \"1729776000000-example.jpg\",\n  \"mime\": \"image/jpeg\",\n  \"size\": 125648,\n  \"createdAt\": \"2025-10-24T12:00:00.000Z\"\n}"
+              "body": "{\n  \"id\": 1,\n  \"name\": \"example.jpg\",\n  \"customName\": \"My Custom File Name\",\n  \"key\": \"1729776000000-example.jpg\",\n  \"mime\": \"image/jpeg\",\n  \"size\": 125648,\n  \"metadata\": {\"author\": \"John Doe\", \"tags\": [\"important\", \"project\"]},\n  \"createdAt\": \"2025-10-24T12:00:00.000Z\",\n  \"updatedAt\": \"2025-10-24T12:00:00.000Z\"\n}"
             }
           ]
         },
@@ -119,7 +131,73 @@
                   "value": "application/json"
                 }
               ],
-              "body": "{\n  \"files\": [\n    {\n      \"id\": 1,\n      \"name\": \"example.jpg\",\n      \"key\": \"1729776000000-example.jpg\",\n      \"mime\": \"image/jpeg\",\n      \"size\": 125648,\n      \"createdAt\": \"2025-10-24T12:00:00.000Z\"\n    },\n    {\n      \"id\": 2,\n      \"name\": \"document.pdf\",\n      \"key\": \"1729776100000-document.pdf\",\n      \"mime\": \"application/pdf\",\n      \"size\": 456789,\n      \"createdAt\": \"2025-10-24T12:05:00.000Z\"\n    }\n  ]\n}"
+              "body": "{\n  \"files\": [\n    {\n      \"id\": 1,\n      \"name\": \"example.jpg\",\n      \"customName\": \"My Custom File Name\",\n      \"key\": \"1729776000000-example.jpg\",\n      \"mime\": \"image/jpeg\",\n      \"size\": 125648,\n      \"metadata\": {\"author\": \"John Doe\", \"tags\": [\"important\", \"project\"]},\n      \"createdAt\": \"2025-10-24T12:00:00.000Z\",\n      \"updatedAt\": \"2025-10-24T12:00:00.000Z\"\n    },\n    {\n      \"id\": 2,\n      \"name\": \"document.pdf\",\n      \"customName\": null,\n      \"key\": \"1729776100000-document.pdf\",\n      \"mime\": \"application/pdf\",\n      \"size\": 456789,\n      \"metadata\": null,\n      \"createdAt\": \"2025-10-24T12:05:00.000Z\",\n      \"updatedAt\": \"2025-10-24T12:05:00.000Z\"\n    }\n  ]\n}"
+            }
+          ]
+        },
+        {
+          "name": "Get File Details",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/files/:id",
+              "host": ["{{baseUrl}}"],
+              "path": ["files", ":id"],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": "1",
+                  "description": "File ID to retrieve"
+                }
+              ]
+            },
+            "description": "Get detailed information about a specific file including a download URL"
+          },
+          "response": [
+            {
+              "name": "Success Example",
+              "originalRequest": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/files/1",
+                  "host": ["{{baseUrl}}"],
+                  "path": ["files", "1"]
+                }
+              },
+              "status": "OK",
+              "code": 200,
+              "_postman_previewlanguage": "json",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"id\": 1,\n  \"name\": \"example.jpg\",\n  \"customName\": \"My Custom File Name\",\n  \"key\": \"1729776000000-example.jpg\",\n  \"mime\": \"image/jpeg\",\n  \"size\": 125648,\n  \"metadata\": {\"author\": \"John Doe\", \"tags\": [\"important\", \"project\"]},\n  \"createdAt\": \"2025-10-24T12:00:00.000Z\",\n  \"updatedAt\": \"2025-10-24T12:00:00.000Z\",\n  \"downloadUrl\": \"https://s3.us-east-005.backblazeb2.com/fyou-storage/1729776000000-example.jpg?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Credential=...\"\n}"
+            },
+            {
+              "name": "Not Found Example",
+              "originalRequest": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/files/999",
+                  "host": ["{{baseUrl}}"],
+                  "path": ["files", "999"]
+                }
+              },
+              "status": "Not Found",
+              "code": 404,
+              "_postman_previewlanguage": "json",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"error\": \"File not found\"\n}"
             }
           ]
         },

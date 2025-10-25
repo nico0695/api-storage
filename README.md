@@ -115,29 +115,37 @@ Content-Type: multipart/form-data
 
 **Request:**
 - Send file as `multipart/form-data` with field name `file`
+- Optional: `customName` - Custom name for the file
+- Optional: `metadata` - JSON metadata (as string)
 
 **Example using curl:**
 ```bash
 curl -X POST http://localhost:4000/files/upload \
-  -F "file=@/path/to/your/file.jpg"
+  -F "file=@/path/to/your/file.jpg" \
+  -F "customName=My Custom File Name" \
+  -F 'metadata={"author": "John Doe", "tags": ["important"]}'
 ```
 
 **Example using Postman:**
 - Method: POST
 - URL: `http://localhost:4000/files/upload`
 - Body: form-data
-- Key: `file` (type: File)
-- Value: Select your file
+  - Key: `file` (type: File) - Select your file
+  - Key: `customName` (type: Text) - Optional custom name
+  - Key: `metadata` (type: Text) - Optional JSON metadata
 
 **Response:**
 ```json
 {
   "id": 1,
   "name": "example.jpg",
+  "customName": "My Custom File Name",
   "key": "1729776000000-example.jpg",
   "mime": "image/jpeg",
   "size": 125648,
-  "createdAt": "2025-10-24T12:00:00.000Z"
+  "metadata": {"author": "John Doe", "tags": ["important"]},
+  "createdAt": "2025-10-24T12:00:00.000Z",
+  "updatedAt": "2025-10-24T12:00:00.000Z"
 }
 ```
 
@@ -153,16 +161,47 @@ GET /files
     {
       "id": 1,
       "name": "example.jpg",
+      "customName": "My Custom File Name",
       "key": "1729776000000-example.jpg",
       "mime": "image/jpeg",
       "size": 125648,
-      "createdAt": "2025-10-24T12:00:00.000Z"
+      "metadata": {"author": "John Doe", "tags": ["important"]},
+      "createdAt": "2025-10-24T12:00:00.000Z",
+      "updatedAt": "2025-10-24T12:00:00.000Z"
     }
   ]
 }
 ```
 
-### 4. Delete File
+### 4. Get File Details
+```
+GET /files/:id
+```
+
+**Example:**
+```bash
+curl http://localhost:4000/files/1
+```
+
+**Response:**
+```json
+{
+  "id": 1,
+  "name": "example.jpg",
+  "customName": "My Custom File Name",
+  "key": "1729776000000-example.jpg",
+  "mime": "image/jpeg",
+  "size": 125648,
+  "metadata": {"author": "John Doe", "tags": ["important"]},
+  "createdAt": "2025-10-24T12:00:00.000Z",
+  "updatedAt": "2025-10-24T12:00:00.000Z",
+  "downloadUrl": "https://s3.us-east-005.backblazeb2.com/your-bucket/1729776000000-example.jpg?X-Amz-Algorithm=..."
+}
+```
+
+**Note:** The `downloadUrl` is a presigned URL valid for 1 hour (3600 seconds) that allows direct download of the file from Backblaze B2.
+
+### 5. Delete File
 ```
 DELETE /files/:id
 ```
@@ -182,18 +221,24 @@ curl -X DELETE http://localhost:4000/files/1
 ## 📝 How It Works
 
 1. **Upload Flow:**
-   - Client sends file via multipart form-data
+   - Client sends file via multipart form-data with optional customName and metadata
    - Multer processes the upload and stores in memory
-   - Zod validates file metadata
+   - Zod validates file metadata and optional fields
    - File is uploaded to Backblaze B2 with unique key
-   - Metadata is saved to SQLite database
-   - Response includes file details
+   - Metadata (including customName and metadata JSON) is saved to SQLite database
+   - Response includes file details with all fields
 
 2. **List Flow:**
    - Retrieves all file metadata from SQLite
-   - Returns array of files sorted by creation date
+   - Returns array of files sorted by creation date with all fields
 
-3. **Delete Flow:**
+3. **Get File Details Flow:**
+   - Validates file ID
+   - Retrieves file record from database
+   - Generates a presigned download URL (valid for 1 hour)
+   - Returns file details including download URL
+
+4. **Delete Flow:**
    - Validates file ID
    - Finds file record in database
    - Deletes file from B2 using stored key
@@ -201,16 +246,28 @@ curl -X DELETE http://localhost:4000/files/1
 
 ## 🔒 Features
 
-- **Input Validation:** Zod schemas validate all inputs
+- **Custom File Names:** Optional custom names for better file organization
+- **Flexible Metadata:** Store arbitrary JSON metadata with each file
+- **Presigned URLs:** Generate secure, time-limited download URLs
+- **Input Validation:** Zod schemas validate all inputs including optional fields
 - **Error Handling:** Comprehensive error handling with proper HTTP status codes
 - **Logging:** Structured JSON logs via Pino for debugging
 - **Type Safety:** Full TypeScript coverage
 - **Unique Keys:** Files stored with timestamp-prefixed keys to avoid collisions
 - **Database Auto-sync:** TypeORM automatically creates tables on startup
+- **Automatic Timestamps:** Track creation and update times for all files
 
 ## 🧪 Testing the API
 
-**Upload a file:**
+**Upload a file with custom name and metadata:**
+```bash
+curl -X POST http://localhost:4000/files/upload \
+  -F "file=@./test-image.jpg" \
+  -F "customName=My Test Image" \
+  -F 'metadata={"author": "John Doe", "project": "test"}'
+```
+
+**Upload a file without optional fields:**
 ```bash
 curl -X POST http://localhost:4000/files/upload \
   -F "file=@./test-image.jpg"
@@ -219,6 +276,11 @@ curl -X POST http://localhost:4000/files/upload \
 **List all files:**
 ```bash
 curl http://localhost:4000/files
+```
+
+**Get file details with download URL:**
+```bash
+curl http://localhost:4000/files/1
 ```
 
 **Delete a file (replace 1 with actual ID):**

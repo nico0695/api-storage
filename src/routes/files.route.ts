@@ -3,7 +3,7 @@ import multer from 'multer';
 import { AppDataSource } from '../app.js';
 import { FileEntity } from '../entities/FileEntity.js';
 import { StorageService } from '../services/storage.service.js';
-import { uploadFileSchema, deleteFileSchema } from '../utils/validate.js';
+import { uploadFileSchema, deleteFileSchema, getFileSchema } from '../utils/validate.js';
 import { logger } from '../utils/logger.js';
 const router = Router();
 const upload = multer({ storage: multer.memoryStorage() });
@@ -21,12 +21,26 @@ router.post(
       }
 
       const { originalname, mimetype, size, buffer } = req.file;
+      const { customName, metadata } = req.body;
+
+      // Parse metadata if it's a string
+      let parsedMetadata = metadata;
+      if (typeof metadata === 'string') {
+        try {
+          parsedMetadata = JSON.parse(metadata);
+        } catch {
+          res.status(400).json({ error: 'Invalid metadata JSON format' });
+          return;
+        }
+      }
 
       // Validate input
       const validation = uploadFileSchema.safeParse({
         name: originalname,
+        customName: customName || undefined,
         mime: mimetype,
         size,
+        metadata: parsedMetadata || undefined,
       });
 
       if (!validation.success) {
@@ -44,9 +58,11 @@ router.post(
       const fileRepo = AppDataSource.getRepository(FileEntity);
       const fileEntity = fileRepo.create({
         name: originalname,
+        customName: customName || null,
         key,
         mime: mimetype,
         size,
+        metadata: parsedMetadata || null,
       });
       await fileRepo.save(fileEntity);
 
@@ -55,10 +71,13 @@ router.post(
       res.status(201).json({
         id: fileEntity.id,
         name: fileEntity.name,
+        customName: fileEntity.customName,
         key: fileEntity.key,
         mime: fileEntity.mime,
         size: fileEntity.size,
+        metadata: fileEntity.metadata,
         createdAt: fileEntity.createdAt,
+        updatedAt: fileEntity.updatedAt,
       });
     } catch (error) {
       logger.error({ error }, 'Error uploading file');
@@ -77,15 +96,60 @@ router.get('/', async (_req: Request, res: Response): Promise<void> => {
       files: files.map((file) => ({
         id: file.id,
         name: file.name,
+        customName: file.customName,
         key: file.key,
         mime: file.mime,
         size: file.size,
+        metadata: file.metadata,
         createdAt: file.createdAt,
+        updatedAt: file.updatedAt,
       })),
     });
   } catch (error) {
     logger.error({ error }, 'Error listing files');
     res.status(500).json({ error: 'Failed to list files' });
+  }
+});
+
+// GET /files/:id
+router.get('/:id', async (req: Request, res: Response): Promise<void> => {
+  try {
+    const validation = getFileSchema.safeParse({ id: req.params.id });
+
+    if (!validation.success) {
+      res.status(400).json({ error: validation.error.errors });
+      return;
+    }
+
+    const fileId = parseInt(req.params.id, 10);
+    const fileRepo = AppDataSource.getRepository(FileEntity);
+    const file = await fileRepo.findOne({ where: { id: fileId } });
+
+    if (!file) {
+      res.status(404).json({ error: 'File not found' });
+      return;
+    }
+
+    // Generate download URL
+    const downloadUrl = await storageService.getDownloadUrl(file.key);
+
+    logger.info({ id: fileId, key: file.key }, 'File details retrieved');
+
+    res.json({
+      id: file.id,
+      name: file.name,
+      customName: file.customName,
+      key: file.key,
+      mime: file.mime,
+      size: file.size,
+      metadata: file.metadata,
+      createdAt: file.createdAt,
+      updatedAt: file.updatedAt,
+      downloadUrl,
+    });
+  } catch (error) {
+    logger.error({ error }, 'Error retrieving file details');
+    res.status(500).json({ error: 'Failed to retrieve file details' });
   }
 });
 

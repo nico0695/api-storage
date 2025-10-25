@@ -1,4 +1,10 @@
-import { Entity, PrimaryGeneratedColumn, Column, CreateDateColumn } from 'typeorm';
+import {
+  Entity,
+  PrimaryGeneratedColumn,
+  Column,
+  CreateDateColumn,
+  UpdateDateColumn,
+} from 'typeorm';
 
 @Entity('files')
 export class FileEntity {
@@ -7,6 +13,9 @@ export class FileEntity {
 
   @Column()
   name!: string;
+
+  @Column({ type: 'text', nullable: true })
+  customName!: string | null;
 
   @Column()
   key!: string;
@@ -17,6 +26,12 @@ export class FileEntity {
   @Column()
   size!: number;
 
+  @Column({ type: 'simple-json', nullable: true })
+  metadata!: Record<string, unknown> | null;
+
   @CreateDateColumn()
   createdAt!: Date;
+
+  @UpdateDateColumn()
+  updatedAt!: Date;
 }
