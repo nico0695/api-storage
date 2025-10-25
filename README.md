@@ -92,6 +92,38 @@ npm start
 
 The server will start on `http://localhost:4000`
 
+## 🔐 Authentication
+
+All file management endpoints require API key authentication via the `X-API-Key` header.
+
+### Quick Setup
+
+1. **Create an API key:**
+   ```bash
+   npm run key:add -- --name "my-app"
+   ```
+
+2. **Copy the generated key** (shown only once)
+
+3. **Use in requests:**
+   ```bash
+   curl http://localhost:4000/files \
+     -H "X-API-Key: sk_your_generated_key_here"
+   ```
+
+### Management Commands
+
+```bash
+npm run key:list              # List all API keys
+npm run key:add -- --name "app-name"   # Create new key
+npm run key:disable -- --id 1 # Disable a key
+npm run key:enable -- --id 1  # Enable a key
+npm run key:delete -- --id 1  # Delete a key
+npm run key:help              # Show help
+```
+
+**For detailed documentation**, including usage examples for Next.js and Node.js, see [API-KEYS.md](./API-KEYS.md).
+
 ## 🔌 API Endpoints
 
 ### 1. Health Check
@@ -121,6 +153,7 @@ Content-Type: multipart/form-data
 **Example using curl:**
 ```bash
 curl -X POST http://localhost:4000/files/upload \
+  -H "X-API-Key: your_api_key_here" \
   -F "file=@/path/to/your/file.jpg" \
   -F "customName=My Custom File Name" \
   -F 'metadata={"author": "John Doe", "tags": ["important"]}'
@@ -180,7 +213,8 @@ GET /files/:id
 
 **Example:**
 ```bash
-curl http://localhost:4000/files/1
+curl http://localhost:4000/files/1 \
+  -H "X-API-Key: your_api_key_here"
 ```
 
 **Response:**
@@ -208,7 +242,8 @@ DELETE /files/:id
 
 **Example:**
 ```bash
-curl -X DELETE http://localhost:4000/files/1
+curl -X DELETE http://localhost:4000/files/1 \
+  -H "X-API-Key: your_api_key_here"
 ```
 
 **Response:**
@@ -259,9 +294,12 @@ curl -X DELETE http://localhost:4000/files/1
 
 ## 🧪 Testing the API
 
+**Note:** All commands require an API key. Create one first: `npm run key:add -- --name "test"`
+
 **Upload a file with custom name and metadata:**
 ```bash
 curl -X POST http://localhost:4000/files/upload \
+  -H "X-API-Key: your_api_key_here" \
   -F "file=@./test-image.jpg" \
   -F "customName=My Test Image" \
   -F 'metadata={"author": "John Doe", "project": "test"}'
@@ -270,22 +308,26 @@ curl -X POST http://localhost:4000/files/upload \
 **Upload a file without optional fields:**
 ```bash
 curl -X POST http://localhost:4000/files/upload \
+  -H "X-API-Key: your_api_key_here" \
   -F "file=@./test-image.jpg"
 ```
 
 **List all files:**
 ```bash
-curl http://localhost:4000/files
+curl http://localhost:4000/files \
+  -H "X-API-Key: your_api_key_here"
 ```
 
 **Get file details with download URL:**
 ```bash
-curl http://localhost:4000/files/1
+curl http://localhost:4000/files/1 \
+  -H "X-API-Key: your_api_key_here"
 ```
 
 **Delete a file (replace 1 with actual ID):**
 ```bash
-curl -X DELETE http://localhost:4000/files/1
+curl -X DELETE http://localhost:4000/files/1 \
+  -H "X-API-Key: your_api_key_here"
 ```
 
 ## 🚢 Deployment

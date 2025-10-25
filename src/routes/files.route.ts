@@ -5,6 +5,7 @@ import { FileEntity } from '../entities/FileEntity.js';
 import { StorageService } from '../services/storage.service.js';
 import { uploadFileSchema, deleteFileSchema, getFileSchema } from '../utils/validate.js';
 import { logger } from '../utils/logger.js';
+import { authenticateAPIKey } from '../middleware/auth.middleware.js';
 const router = Router();
 const upload = multer({ storage: multer.memoryStorage() });
 const storageService = new StorageService();
@@ -12,6 +13,7 @@ const storageService = new StorageService();
 // POST /files/upload
 router.post(
   '/upload',
+  authenticateAPIKey,
   upload.single('file'),
   async (req: Request, res: Response): Promise<void> => {
     try {
@@ -87,7 +89,7 @@ router.post(
 );
 
 // GET /files
-router.get('/', async (_req: Request, res: Response): Promise<void> => {
+router.get('/', authenticateAPIKey, async (_req: Request, res: Response): Promise<void> => {
   try {
     const fileRepo = AppDataSource.getRepository(FileEntity);
     const files = await fileRepo.find({ order: { createdAt: 'DESC' } });
@@ -112,7 +114,7 @@ router.get('/', async (_req: Request, res: Response): Promise<void> => {
 });
 
 // GET /files/:id
-router.get('/:id', async (req: Request, res: Response): Promise<void> => {
+router.get('/:id', authenticateAPIKey, async (req: Request, res: Response): Promise<void> => {
   try {
     const validation = getFileSchema.safeParse({ id: req.params.id });
 
@@ -154,7 +156,7 @@ router.get('/:id', async (req: Request, res: Response): Promise<void> => {
 });
 
 // DELETE /files/:id
-router.delete('/:id', async (req: Request, res: Response): Promise<void> => {
+router.delete('/:id', authenticateAPIKey, async (req: Request, res: Response): Promise<void> => {
   try {
     const validation = deleteFileSchema.safeParse({ id: req.params.id });
 

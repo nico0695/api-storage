@@ -11,7 +11,13 @@
     "lint": "eslint . --ext .ts",
     "lint:fix": "eslint . --ext .ts --fix",
     "format": "prettier --write \"src/**/*.ts\"",
-    "format:check": "prettier --check \"src/**/*.ts\""
+    "format:check": "prettier --check \"src/**/*.ts\"",
+    "key:add": "node --loader ts-node/esm src/scripts/manage-keys.ts add",
+    "key:list": "node --loader ts-node/esm src/scripts/manage-keys.ts list",
+    "key:disable": "node --loader ts-node/esm src/scripts/manage-keys.ts disable",
+    "key:enable": "node --loader ts-node/esm src/scripts/manage-keys.ts enable",
+    "key:delete": "node --loader ts-node/esm src/scripts/manage-keys.ts delete",
+    "key:help": "node --loader ts-node/esm src/scripts/manage-keys.ts help"
   },
   "keywords": ["express", "backblaze", "b2", "storage", "api"],
   "author": "",

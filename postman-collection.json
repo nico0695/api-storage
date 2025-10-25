@@ -32,7 +32,13 @@
           "name": "Upload File",
           "request": {
             "method": "POST",
-            "header": [],
+            "header": [
+              {
+                "key": "X-API-Key",
+                "value": "{{apiKey}}",
+                "type": "text"
+              }
+            ],
             "body": {
               "mode": "formdata",
               "formdata": [
@@ -102,7 +108,13 @@
           "name": "List All Files",
           "request": {
             "method": "GET",
-            "header": [],
+            "header": [
+              {
+                "key": "X-API-Key",
+                "value": "{{apiKey}}",
+                "type": "text"
+              }
+            ],
             "url": {
               "raw": "{{baseUrl}}/files",
               "host": ["{{baseUrl}}"],
@@ -139,7 +151,13 @@
           "name": "Get File Details",
           "request": {
             "method": "GET",
-            "header": [],
+            "header": [
+              {
+                "key": "X-API-Key",
+                "value": "{{apiKey}}",
+                "type": "text"
+              }
+            ],
             "url": {
               "raw": "{{baseUrl}}/files/:id",
               "host": ["{{baseUrl}}"],
@@ -205,7 +223,13 @@
           "name": "Delete File",
           "request": {
             "method": "DELETE",
-            "header": [],
+            "header": [
+              {
+                "key": "X-API-Key",
+                "value": "{{apiKey}}",
+                "type": "text"
+              }
+            ],
             "url": {
               "raw": "{{baseUrl}}/files/:id",
               "host": ["{{baseUrl}}"],
@@ -274,6 +298,11 @@
     {
       "key": "baseUrl",
       "value": "http://localhost:4000",
+      "type": "string"
+    },
+    {
+      "key": "apiKey",
+      "value": "your_api_key_here",
       "type": "string"
     }
   ]

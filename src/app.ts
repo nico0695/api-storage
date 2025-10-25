@@ -4,6 +4,7 @@ import express, { Application, Request, Response, NextFunction } from 'express';
 import { DataSource } from 'typeorm';
 import pinoHttp from 'pino-http';
 import { FileEntity } from './entities/FileEntity.js';
+import { APIKeyEntity } from './entities/APIKeyEntity.js';
 import filesRouter from './routes/files.route.js';
 import path from 'path';
 import { fileURLToPath } from 'url';
@@ -17,7 +18,7 @@ const __dirname = path.dirname(__filename);
 export const AppDataSource = new DataSource({
   type: 'sqlite',
   database: path.join(__dirname, 'data', 'database.sqlite'),
-  entities: [FileEntity],
+  entities: [FileEntity, APIKeyEntity],
   synchronize: true,
   logging: false,
 });
@@ -26,6 +27,31 @@ export async function createApp(): Promise<Application> {
   const app = express();
 
   // Middleware
+  const defaultOrigins = ['http://localhost:3000', 'http://127.0.0.1:3000'];
+  const envOrigins = (process.env.CORS_ORIGINS || '')
+    .split(',')
+    .map((s) => s.trim())
+    .filter(Boolean);
+  const allowedOrigins = envOrigins.length ? envOrigins : defaultOrigins;
+
+  app.use((req: Request, res: Response, next: NextFunction) => {
+    const origin = req.headers.origin as string | undefined;
+    if (origin && allowedOrigins.includes(origin)) {
+      res.setHeader('Access-Control-Allow-Origin', origin);
+    }
+    // Ensure caches vary by Origin
+    res.setHeader('Vary', 'Origin');
+    res.setHeader('Access-Control-Allow-Methods', 'GET,POST,DELETE,OPTIONS');
+    res.setHeader('Access-Control-Allow-Headers', 'Content-Type, X-API-Key');
+    res.setHeader('Access-Control-Allow-Credentials', 'true');
+
+    if (req.method === 'OPTIONS') {
+      res.sendStatus(204);
+      return;
+    }
+    next();
+  });
+
   app.use(express.json({ limit: '50mb' }));
   app.use(express.urlencoded({ extended: true, limit: '50mb' }));
   app.use(pinoHttp({ logger }));
