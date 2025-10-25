@@ -29,5 +29,5 @@ RUN mkdir -p /app/data && chown -R node:node /app/data
 # Switch to non-root user
 USER node
 
-EXPOSE 4000
+EXPOSE 4003
 CMD [ "npm", "start" ]

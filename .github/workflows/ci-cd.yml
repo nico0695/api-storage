@@ -46,7 +46,7 @@ jobs:
             docker build -t api-storage .
             docker run -d --name api-storage \
               --restart unless-stopped \
-              -p 4000:4000 \
+              -p 4003:4003 \
               -v api_storage_data:/app/data \
               -e NODE_ENV=production \
               -e PORT=$PORT \
