@@ -47,7 +47,7 @@ jobs:
             docker run -d --name api-storage \
               --restart unless-stopped \
               -p 4003:4003 \
-              -v api_storage_data:/app/data \
+              -v api_storage_data:/app/dist/data \
               -e NODE_ENV=production \
               -e PORT=$PORT \
               -e B2_REGION=$B2_REGION \
