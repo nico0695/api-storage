@@ -12,12 +12,12 @@
     "lint:fix": "eslint . --ext .ts --fix",
     "format": "prettier --write \"src/**/*.ts\"",
     "format:check": "prettier --check \"src/**/*.ts\"",
-    "key:add": "node --loader ts-node/esm src/scripts/manage-keys.ts add",
-    "key:list": "node --loader ts-node/esm src/scripts/manage-keys.ts list",
-    "key:disable": "node --loader ts-node/esm src/scripts/manage-keys.ts disable",
-    "key:enable": "node --loader ts-node/esm src/scripts/manage-keys.ts enable",
-    "key:delete": "node --loader ts-node/esm src/scripts/manage-keys.ts delete",
-    "key:help": "node --loader ts-node/esm src/scripts/manage-keys.ts help"
+    "key:add": "test -f src/scripts/manage-keys.ts && node --loader ts-node/esm src/scripts/manage-keys.ts add || node dist/scripts/manage-keys.js add",
+    "key:list": "test -f src/scripts/manage-keys.ts && node --loader ts-node/esm src/scripts/manage-keys.ts list || node dist/scripts/manage-keys.js list",
+    "key:disable": "test -f src/scripts/manage-keys.ts && node --loader ts-node/esm src/scripts/manage-keys.ts disable || node dist/scripts/manage-keys.js disable",
+    "key:enable": "test -f src/scripts/manage-keys.ts && node --loader ts-node/esm src/scripts/manage-keys.ts enable || node dist/scripts/manage-keys.js enable",
+    "key:delete": "test -f src/scripts/manage-keys.ts && node --loader ts-node/esm src/scripts/manage-keys.ts delete || node dist/scripts/manage-keys.js delete",
+    "key:help": "test -f src/scripts/manage-keys.ts && node --loader ts-node/esm src/scripts/manage-keys.ts help || node dist/scripts/manage-keys.js help"
   },
   "keywords": ["express", "backblaze", "b2", "storage", "api"],
   "author": "",
