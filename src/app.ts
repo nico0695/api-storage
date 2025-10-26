@@ -27,7 +27,11 @@ export async function createApp(): Promise<Application> {
   const app = express();
 
   // Middleware
-  const defaultOrigins = ['http://localhost:3000', 'http://127.0.0.1:3000'];
+  const defaultOrigins = [
+    'http://localhost:3000',
+    'http://127.0.0.1:3000',
+    'https://api-storage-front.vercel.app',
+  ];
   const envOrigins = (process.env.CORS_ORIGINS || '')
     .split(',')
     .map((s) => s.trim())
