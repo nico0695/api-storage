@@ -3,11 +3,16 @@ import { DataSource } from 'typeorm';
 import { APIKeyEntity } from '../entities/APIKeyEntity.js';
 import { FileEntity } from '../entities/FileEntity.js';
 import { generateAPIKey } from '../utils/generate-key.js';
+import path from 'path';
+import { fileURLToPath } from 'url';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 // Initialize database connection
 const AppDataSource = new DataSource({
   type: 'sqlite',
-  database: './src/data/database.sqlite',
+  database: path.join(__dirname, '..', 'data', 'database.sqlite'),
   entities: [FileEntity, APIKeyEntity],
   synchronize: true,
   logging: false,
