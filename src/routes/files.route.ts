@@ -3,9 +3,15 @@ import multer from 'multer';
 import { AppDataSource } from '../app.js';
 import { FileEntity } from '../entities/FileEntity.js';
 import { StorageService } from '../services/storage.service.js';
-import { uploadFileSchema, deleteFileSchema, getFileSchema } from '../utils/validate.js';
+import {
+  uploadFileSchema,
+  deleteFileSchema,
+  getFileSchema,
+  listFilesQuerySchema,
+} from '../utils/validate.js';
 import { logger } from '../utils/logger.js';
 import { authenticateAPIKey } from '../middleware/auth.middleware.js';
+import { Like, Between, MoreThanOrEqual, LessThanOrEqual } from 'typeorm';
 const router = Router();
 const upload = multer({ storage: multer.memoryStorage() });
 const storageService = new StorageService();
@@ -89,10 +95,67 @@ router.post(
 );
 
 // GET /files
-router.get('/', authenticateAPIKey, async (_req: Request, res: Response): Promise<void> => {
+router.get('/', authenticateAPIKey, async (req: Request, res: Response): Promise<void> => {
   try {
+    // Validate query parameters
+    const validation = listFilesQuerySchema.safeParse(req.query);
+
+    if (!validation.success) {
+      res.status(400).json({ error: validation.error.errors });
+      return;
+    }
+
+    const { search, mime, minSize, maxSize, dateFrom, dateTo, page, limit } = validation.data;
+
     const fileRepo = AppDataSource.getRepository(FileEntity);
-    const files = await fileRepo.find({ order: { createdAt: 'DESC' } });
+
+    // Build where conditions
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const where: any = {};
+
+    // Search by name (case-insensitive)
+    if (search) {
+      where.name = Like(`%${search}%`);
+    }
+
+    // Filter by MIME type
+    if (mime) {
+      where.mime = mime;
+    }
+
+    // Filter by size range
+    if (minSize !== undefined && maxSize !== undefined) {
+      where.size = Between(minSize, maxSize);
+    } else if (minSize !== undefined) {
+      where.size = MoreThanOrEqual(minSize);
+    } else if (maxSize !== undefined) {
+      where.size = LessThanOrEqual(maxSize);
+    }
+
+    // Filter by date range
+    if (dateFrom && dateTo) {
+      where.createdAt = Between(new Date(dateFrom), new Date(dateTo));
+    } else if (dateFrom) {
+      where.createdAt = MoreThanOrEqual(new Date(dateFrom));
+    } else if (dateTo) {
+      where.createdAt = LessThanOrEqual(new Date(dateTo));
+    }
+
+    // Get total count for pagination
+    const total = await fileRepo.count({ where });
+
+    // Get paginated files
+    const files = await fileRepo.find({
+      where,
+      order: { createdAt: 'DESC' },
+      take: limit,
+      skip: (page - 1) * limit,
+    });
+
+    logger.info(
+      { filters: { search, mime, minSize, maxSize, dateFrom, dateTo }, total, page, limit },
+      'Files listed with filters'
+    );
 
     res.json({
       files: files.map((file) => ({
@@ -106,6 +169,12 @@ router.get('/', authenticateAPIKey, async (_req: Request, res: Response): Promis
         createdAt: file.createdAt,
         updatedAt: file.updatedAt,
       })),
+      pagination: {
+        page,
+        limit,
+        total,
+        totalPages: Math.ceil(total / limit),
+      },
     });
   } catch (error) {
     logger.error({ error }, 'Error listing files');
