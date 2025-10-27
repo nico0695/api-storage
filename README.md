@@ -284,6 +284,8 @@ curl -X DELETE http://localhost:4000/files/1 \
 - **Custom File Names:** Optional custom names for better file organization
 - **Flexible Metadata:** Store arbitrary JSON metadata with each file
 - **Presigned URLs:** Generate secure, time-limited download URLs
+- **File Sharing Links:** Create public, secure share links with expiration and optional passwords ([docs](./SHARE-LINKS.md))
+- **Search & Filters:** Advanced file search with pagination ([docs](./FRONTEND-SEARCH-FILTERS.md))
 - **Input Validation:** Zod schemas validate all inputs including optional fields
 - **Error Handling:** Comprehensive error handling with proper HTTP status codes
 - **Logging:** Structured JSON logs via Pino for debugging

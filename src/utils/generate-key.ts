@@ -10,3 +10,14 @@ export function generateAPIKey(): string {
   const hexString = randomBytes.toString('hex');
   return `sk_${hexString}`;
 }
+
+/**
+ * Generates a cryptographically secure share token
+ * Format: share_<32 random hex characters>
+ * Example: share_a7f3b9e1c4d2f8a6b5c3e9d1f7a4b2c8
+ */
+export function generateShareToken(): string {
+  const randomBytes = crypto.randomBytes(32);
+  const hexString = randomBytes.toString('hex');
+  return `share_${hexString}`;
+}

@@ -5,7 +5,9 @@ import { DataSource } from 'typeorm';
 import pinoHttp from 'pino-http';
 import { FileEntity } from './entities/FileEntity.js';
 import { APIKeyEntity } from './entities/APIKeyEntity.js';
+import { ShareLinkEntity } from './entities/ShareLinkEntity.js';
 import filesRouter from './routes/files.route.js';
+import shareRouter from './routes/share.route.js';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import fs from 'fs';
@@ -18,7 +20,7 @@ const __dirname = path.dirname(__filename);
 export const AppDataSource = new DataSource({
   type: 'sqlite',
   database: path.join(__dirname, 'data', 'database.sqlite'),
-  entities: [FileEntity, APIKeyEntity],
+  entities: [FileEntity, APIKeyEntity, ShareLinkEntity],
   synchronize: true,
   logging: false,
 });
@@ -62,6 +64,7 @@ export async function createApp(): Promise<Application> {
 
   // Routes
   app.use('/files', filesRouter);
+  app.use('/share', shareRouter);
 
   // Health check
   app.get('/health', (_req: Request, res: Response) => {

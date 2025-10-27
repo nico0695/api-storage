@@ -27,7 +27,30 @@ export const listFilesQuerySchema = z.object({
   limit: z.string().regex(/^\d+$/).transform(Number).optional().default('50'),
 });
 
+export const createShareLinkSchema = z.object({
+  id: z.string().regex(/^\d+$/, 'ID must be a valid number'),
+  ttl: z.string().regex(/^\d+$/).transform(Number).optional(),
+  password: z.string().min(4, 'Password must be at least 4 characters').optional(),
+});
+
+export const getShareLinkSchema = z.object({
+  token: z.string().startsWith('share_', 'Invalid share token format'),
+});
+
+export const accessShareLinkSchema = z.object({
+  token: z.string().startsWith('share_', 'Invalid share token format'),
+  password: z.string().optional(),
+});
+
+export const deleteShareLinkSchema = z.object({
+  token: z.string().startsWith('share_', 'Invalid share token format'),
+});
+
 export type UploadFileInput = z.infer<typeof uploadFileSchema>;
 export type DeleteFileInput = z.infer<typeof deleteFileSchema>;
 export type GetFileInput = z.infer<typeof getFileSchema>;
 export type ListFilesQuery = z.infer<typeof listFilesQuerySchema>;
+export type CreateShareLinkInput = z.infer<typeof createShareLinkSchema>;
+export type GetShareLinkInput = z.infer<typeof getShareLinkSchema>;
+export type AccessShareLinkInput = z.infer<typeof accessShareLinkSchema>;
+export type DeleteShareLinkInput = z.infer<typeof deleteShareLinkSchema>;

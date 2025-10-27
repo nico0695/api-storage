@@ -19,12 +19,19 @@
     "key:delete": "test -f src/scripts/manage-keys.ts && node --loader ts-node/esm src/scripts/manage-keys.ts delete || node dist/scripts/manage-keys.js delete",
     "key:help": "test -f src/scripts/manage-keys.ts && node --loader ts-node/esm src/scripts/manage-keys.ts help || node dist/scripts/manage-keys.js help"
   },
-  "keywords": ["express", "backblaze", "b2", "storage", "api"],
+  "keywords": [
+    "express",
+    "backblaze",
+    "b2",
+    "storage",
+    "api"
+  ],
   "author": "",
   "license": "ISC",
   "dependencies": {
     "@aws-sdk/client-s3": "^3.709.0",
     "@aws-sdk/s3-request-presigner": "^3.709.0",
+    "bcrypt": "^6.0.0",
     "dotenv": "^16.4.7",
     "express": "^4.21.2",
     "multer": "^1.4.5-lts.1",
@@ -36,6 +43,7 @@
     "zod": "^3.24.1"
   },
   "devDependencies": {
+    "@types/bcrypt": "^6.0.0",
     "@types/express": "^5.0.0",
     "@types/multer": "^1.4.12",
     "@types/node": "^22.10.5",
