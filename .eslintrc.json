@@ -5,6 +5,7 @@
     "sourceType": "module",
     "project": "./tsconfig.json"
   },
+  "ignorePatterns": ["jest.config.ts"],
   "plugins": ["@typescript-eslint", "prettier"],
   "extends": [
     "eslint:recommended",
