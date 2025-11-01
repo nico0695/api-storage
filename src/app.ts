@@ -1,29 +1,17 @@
 import './config.js';
 import 'reflect-metadata';
 import express, { Application, Request, Response, NextFunction } from 'express';
-import { DataSource } from 'typeorm';
 import pinoHttp from 'pino-http';
-import { FileEntity } from './entities/FileEntity.js';
-import { APIKeyEntity } from './entities/APIKeyEntity.js';
-import { ShareLinkEntity } from './entities/ShareLinkEntity.js';
-import filesRouter from './routes/files.route.js';
-import shareRouter from './routes/share.route.js';
+import { createFilesRouter } from './routes/files.route.js';
+import { createShareRouter } from './routes/share.route.js';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import fs from 'fs';
 import { logger } from './utils/logger.js';
+import { AppDataSource } from './data-source.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
-
-// Initialize TypeORM DataSource
-export const AppDataSource = new DataSource({
-  type: 'sqlite',
-  database: path.join(__dirname, 'data', 'database.sqlite'),
-  entities: [FileEntity, APIKeyEntity, ShareLinkEntity],
-  synchronize: true,
-  logging: false,
-});
 
 export async function createApp(): Promise<Application> {
   const app = express();
@@ -63,8 +51,8 @@ export async function createApp(): Promise<Application> {
   app.use(pinoHttp({ logger }));
 
   // Routes
-  app.use('/files', filesRouter);
-  app.use('/share', shareRouter);
+  app.use('/files', createFilesRouter());
+  app.use('/share', createShareRouter());
 
   // Health check
   app.get('/health', (_req: Request, res: Response) => {
