@@ -1,6 +1,15 @@
 import { z } from 'zod';
 
 /**
+ * Escapes SQL LIKE special characters to prevent wildcard injection
+ * @param str - The string to escape
+ * @returns Escaped string safe for use in LIKE patterns
+ */
+export function escapeLikeString(str: string): string {
+  return str.replace(/[%_\\]/g, '\\$&');
+}
+
+/**
  * Normalizes a file path for storage
  * @param path - The path to normalize
  * @returns Normalized path or null if empty

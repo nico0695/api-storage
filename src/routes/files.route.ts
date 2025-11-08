@@ -13,6 +13,7 @@ import {
   listFilesQuerySchema,
   createShareLinkSchema,
   normalizePath,
+  escapeLikeString,
 } from '../utils/validate.js';
 import { generateShareToken } from '../utils/generate-key.js';
 import { logger } from '../utils/logger.js';
@@ -189,12 +190,12 @@ export function createFilesRouter({
 
       // Search by name (case-insensitive)
       if (search) {
-        where.name = Like(`%${search}%`);
+        where.name = Like(`%${escapeLikeString(search)}%`);
       }
 
       // Search by path (case-insensitive)
       if (searchPath) {
-        where.path = Like(`%${searchPath}%`);
+        where.path = Like(`%${escapeLikeString(searchPath)}%`);
       }
 
       // Filter by MIME type
