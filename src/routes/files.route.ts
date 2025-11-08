@@ -12,6 +12,8 @@ import {
   getFileSchema,
   listFilesQuerySchema,
   createShareLinkSchema,
+  normalizePath,
+  escapeLikeString,
 } from '../utils/validate.js';
 import { generateShareToken } from '../utils/generate-key.js';
 import { logger } from '../utils/logger.js';
@@ -30,6 +32,16 @@ export interface FilesRouterDeps {
 
 // Default TTL for share links: 7 days (in seconds)
 const DEFAULT_TTL = 7 * 24 * 60 * 60;
+
+/**
+ * Generates the full path for a file (combining path and filename)
+ * @param path - The directory path (nullable)
+ * @param filename - The filename
+ * @returns Full path string
+ */
+function getFullPath(path: string | null, filename: string): string {
+  return path ? `${path}/${filename}` : filename;
+}
 
 export function createFilesRouter({
   storageService = new StorageService(),
@@ -54,7 +66,7 @@ export function createFilesRouter({
         }
 
         const { originalname, mimetype, size, buffer } = req.file;
-        const { customName, metadata } = req.body;
+        const { customName, metadata, path: rawPath } = req.body;
 
         // Parse metadata if it's a string
         let parsedMetadata = metadata;
@@ -71,6 +83,7 @@ export function createFilesRouter({
         const validation = uploadFileSchema.safeParse({
           name: originalname,
           customName: customName || undefined,
+          path: rawPath || undefined,
           mime: mimetype,
           size,
           metadata: parsedMetadata || undefined,
@@ -81,8 +94,28 @@ export function createFilesRouter({
           return;
         }
 
-        // Generate unique key
-        const key = `${Date.now()}-${originalname}`;
+        // Normalize and validate path
+        let normalizedPath: string | null = null;
+        try {
+          normalizedPath = normalizePath(rawPath);
+        } catch (error) {
+          res.status(400).json({ error: error instanceof Error ? error.message : 'Invalid path' });
+          return;
+        }
+
+        // Get user ID from authenticated API key
+        if (!req.apiKey) {
+          res.status(401).json({ error: 'Authentication required' });
+          return;
+        }
+        const userId = req.apiKey.id;
+
+        // Generate unique key with user folder structure
+        // Format: {userId}/{path}/{timestamp}-{filename}
+        const timestamp = Date.now();
+        const key = normalizedPath
+          ? `${userId}/${normalizedPath}/${timestamp}-${originalname}`
+          : `${userId}/${timestamp}-${originalname}`;
 
         // Upload to B2
         await storageService.uploadFile(key, buffer, mimetype);
@@ -93,19 +126,25 @@ export function createFilesRouter({
           name: originalname,
           customName: customName || null,
           key,
+          path: normalizedPath,
           mime: mimetype,
           size,
           metadata: parsedMetadata || null,
         });
         await fileRepo.save(fileEntity);
 
-        log.info({ id: fileEntity.id, name: originalname }, 'File uploaded successfully');
+        log.info(
+          { id: fileEntity.id, name: originalname, path: normalizedPath, userId },
+          'File uploaded successfully'
+        );
 
         res.status(201).json({
           id: fileEntity.id,
           name: fileEntity.name,
           customName: fileEntity.customName,
           key: fileEntity.key,
+          path: fileEntity.path,
+          fullPath: getFullPath(fileEntity.path, fileEntity.name),
           mime: fileEntity.mime,
           size: fileEntity.size,
           metadata: fileEntity.metadata,
@@ -130,17 +169,33 @@ export function createFilesRouter({
         return;
       }
 
-      const { search, mime, minSize, maxSize, dateFrom, dateTo, page, limit } = validation.data;
+      const { search, searchPath, mime, minSize, maxSize, dateFrom, dateTo, page, limit } =
+        validation.data;
 
       const fileRepo = dataSource.getRepository(FileEntity);
+
+      // Get user ID from authenticated API key
+      if (!req.apiKey) {
+        res.status(401).json({ error: 'Authentication required' });
+        return;
+      }
+      const userId = req.apiKey.id;
 
       // Build where conditions
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const where: any = {};
 
+      // Filter by user (all files must belong to this user)
+      where.key = Like(`${userId}/%`);
+
       // Search by name (case-insensitive)
       if (search) {
-        where.name = Like(`%${search}%`);
+        where.name = Like(`%${escapeLikeString(search)}%`);
+      }
+
+      // Search by path (case-insensitive)
+      if (searchPath) {
+        where.path = Like(`%${escapeLikeString(searchPath)}%`);
       }
 
       // Filter by MIME type
@@ -204,7 +259,13 @@ export function createFilesRouter({
       );
 
       log.info(
-        { filters: { search, mime, minSize, maxSize, dateFrom, dateTo }, total, page, limit },
+        {
+          filters: { search, searchPath, mime, minSize, maxSize, dateFrom, dateTo },
+          total,
+          page,
+          limit,
+          userId,
+        },
         'Files listed with filters'
       );
 
@@ -225,6 +286,8 @@ export function createFilesRouter({
             name: file.name,
             customName: file.customName,
             key: file.key,
+            path: file.path,
+            fullPath: getFullPath(file.path, file.name),
             mime: file.mime,
             size: file.size,
             metadata: file.metadata,
@@ -258,10 +321,25 @@ export function createFilesRouter({
 
       const fileId = parseInt(req.params.id, 10);
       const fileRepo = dataSource.getRepository(FileEntity);
+
+      // Get user ID from authenticated API key
+      if (!req.apiKey) {
+        res.status(401).json({ error: 'Authentication required' });
+        return;
+      }
+      const userId = req.apiKey.id;
+
+      // Find file and verify ownership
       const file = await fileRepo.findOne({ where: { id: fileId } });
 
       if (!file) {
         res.status(404).json({ error: 'File not found' });
+        return;
+      }
+
+      // Verify that the file belongs to the authenticated user
+      if (!file.key.startsWith(`${userId}/`)) {
+        res.status(403).json({ error: 'Access denied. This file belongs to another user.' });
         return;
       }
 
@@ -281,13 +359,15 @@ export function createFilesRouter({
 
       const baseUrl = process.env.BASE_URL || `${req.protocol}://${req.get('host')}`;
 
-      log.info({ id: fileId, key: file.key }, 'File details retrieved');
+      log.info({ id: fileId, key: file.key, userId }, 'File details retrieved');
 
       res.json({
         id: file.id,
         name: file.name,
         customName: file.customName,
         key: file.key,
+        path: file.path,
+        fullPath: getFullPath(file.path, file.name),
         mime: file.mime,
         size: file.size,
         metadata: file.metadata,
@@ -323,10 +403,25 @@ export function createFilesRouter({
 
         const fileId = parseInt(req.params.id, 10);
         const fileRepo = dataSource.getRepository(FileEntity);
+
+        // Get user ID from authenticated API key
+        if (!req.apiKey) {
+          res.status(401).json({ error: 'Authentication required' });
+          return;
+        }
+        const userId = req.apiKey.id;
+
+        // Find file
         const file = await fileRepo.findOne({ where: { id: fileId } });
 
         if (!file) {
           res.status(404).json({ error: 'File not found' });
+          return;
+        }
+
+        // Verify that the file belongs to the authenticated user
+        if (!file.key.startsWith(`${userId}/`)) {
+          res.status(403).json({ error: 'Access denied. This file belongs to another user.' });
           return;
         }
 
@@ -336,7 +431,7 @@ export function createFilesRouter({
         // Delete from database
         await fileRepo.remove(file);
 
-        log.info({ id: fileId, key: file.key }, 'File deleted successfully');
+        log.info({ id: fileId, key: file.key, userId }, 'File deleted successfully');
 
         res.json({ message: 'File deleted successfully' });
       } catch (error) {
@@ -366,12 +461,25 @@ export function createFilesRouter({
         const { id, ttl, password } = validation.data;
         const fileId = parseInt(id, 10);
 
+        // Get user ID from authenticated API key
+        if (!req.apiKey) {
+          res.status(401).json({ error: 'Authentication required' });
+          return;
+        }
+        const userId = req.apiKey.id;
+
         // Check if file exists
         const fileRepo = dataSource.getRepository(FileEntity);
         const file = await fileRepo.findOne({ where: { id: fileId } });
 
         if (!file) {
           res.status(404).json({ error: 'File not found' });
+          return;
+        }
+
+        // Verify that the file belongs to the authenticated user
+        if (!file.key.startsWith(`${userId}/`)) {
+          res.status(403).json({ error: 'Access denied. This file belongs to another user.' });
           return;
         }
 
@@ -426,6 +534,28 @@ export function createFilesRouter({
         const fileId = parseInt(req.params.id, 10);
         if (isNaN(fileId)) {
           res.status(400).json({ error: 'Invalid file ID' });
+          return;
+        }
+
+        // Get user ID from authenticated API key
+        if (!req.apiKey) {
+          res.status(401).json({ error: 'Authentication required' });
+          return;
+        }
+        const userId = req.apiKey.id;
+
+        // Verify file exists and belongs to user
+        const fileRepo = dataSource.getRepository(FileEntity);
+        const file = await fileRepo.findOne({ where: { id: fileId } });
+
+        if (!file) {
+          res.status(404).json({ error: 'File not found' });
+          return;
+        }
+
+        // Verify that the file belongs to the authenticated user
+        if (!file.key.startsWith(`${userId}/`)) {
+          res.status(403).json({ error: 'Access denied. This file belongs to another user.' });
           return;
         }
 
