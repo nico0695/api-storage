@@ -27,6 +27,7 @@ describe('Files & Share routers (integration)', () => {
   let storageStub: StorageStub;
   let storageService: Pick<StorageService, 'uploadFile' | 'deleteFile' | 'getDownloadUrl'>;
   let apiKey: string;
+  let apiKeyId: number;
 
   beforeAll(async () => {
     dataSource = new DataSource({
@@ -40,7 +41,9 @@ describe('Files & Share routers (integration)', () => {
 
     const uploadFileMock = jest.fn(async () => undefined) as jest.MockedFunction<AsyncVoidFn>;
     const deleteFileMock = jest.fn(async () => undefined) as jest.MockedFunction<AsyncVoidFn>;
-    const getDownloadUrlMock = jest.fn(async () => 'https://example.com/download') as jest.MockedFunction<AsyncStringFn>;
+    const getDownloadUrlMock = jest.fn(
+      async () => 'https://example.com/download'
+    ) as jest.MockedFunction<AsyncStringFn>;
 
     storageStub = {
       uploadFile: uploadFileMock,
@@ -100,6 +103,7 @@ describe('Files & Share routers (integration)', () => {
     apiKey = generateAPIKey();
     const record = apiKeyRepo.create({ key: apiKey, name: 'test-suite', isActive: true });
     await apiKeyRepo.save(record);
+    apiKeyId = record.id;
   });
 
   afterAll(async () => {
@@ -118,7 +122,8 @@ describe('Files & Share routers (integration)', () => {
     const file = fileRepo.create({
       name: 'document.pdf',
       customName: null,
-      key: 'file-key',
+      key: `${apiKeyId}/file-key`,
+      path: null,
       mime: 'application/pdf',
       size: 1234,
       metadata: null,
@@ -158,7 +163,8 @@ describe('Files & Share routers (integration)', () => {
       fileRepo.create({
         name: 'image.png',
         customName: null,
-        key: 'image-key',
+        key: `${apiKeyId}/image-key`,
+        path: null,
         mime: 'image/png',
         size: 512,
         metadata: null,
@@ -182,7 +188,7 @@ describe('Files & Share routers (integration)', () => {
     const response = await request(app).get(`/files/${file.id}`).set('X-API-Key', apiKey);
 
     expect(response.status).toBe(200);
-    expect(storageStub.getDownloadUrl).toHaveBeenCalledWith('image-key');
+    expect(storageStub.getDownloadUrl).toHaveBeenCalledWith(`${apiKeyId}/image-key`);
     expect(response.body.downloadUrl).toBe('https://signed.example.com/file');
     expect(response.body.shareLinks).toHaveLength(1);
   });
@@ -195,7 +201,8 @@ describe('Files & Share routers (integration)', () => {
       fileRepo.create({
         name: 'archive.zip',
         customName: null,
-        key: 'archive-key',
+        key: `${apiKeyId}/archive-key`,
+        path: null,
         mime: 'application/zip',
         size: 2048,
         metadata: null,
@@ -228,7 +235,8 @@ describe('Files & Share routers (integration)', () => {
       fileRepo.create({
         name: 'video.mp4',
         customName: null,
-        key: 'video-key',
+        key: `${apiKeyId}/video-key`,
+        path: null,
         mime: 'video/mp4',
         size: 4096,
         metadata: null,

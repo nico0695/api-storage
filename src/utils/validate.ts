@@ -1,8 +1,40 @@
 import { z } from 'zod';
 
+/**
+ * Normalizes a file path for storage
+ * @param path - The path to normalize
+ * @returns Normalized path or null if empty
+ * @throws Error if path contains invalid characters or patterns
+ */
+export function normalizePath(path?: string | null): string | null {
+  if (!path || typeof path !== 'string') {
+    return null;
+  }
+
+  // Trim and remove leading/trailing slashes
+  const normalized = path.trim().replace(/^\/+|\/+$/g, '');
+
+  if (!normalized) {
+    return null;
+  }
+
+  if (normalized.includes('..')) {
+    throw new Error('Path cannot contain ".."');
+  }
+  if (normalized.includes('//')) {
+    throw new Error('Path cannot contain consecutive slashes');
+  }
+  if (!/^[a-zA-Z0-9/_-]*$/.test(normalized)) {
+    throw new Error('Path contains invalid characters. Allowed: letters, numbers, /, _, -');
+  }
+
+  return normalized;
+}
+
 export const uploadFileSchema = z.object({
   name: z.string().min(1, 'Filename is required'),
   customName: z.string().optional(),
+  path: z.string().optional(),
   mime: z.string().min(1, 'MIME type is required'),
   size: z.number().positive('File size must be positive'),
   metadata: z.record(z.unknown()).optional(),
@@ -18,6 +50,7 @@ export const getFileSchema = z.object({
 
 export const listFilesQuerySchema = z.object({
   search: z.string().optional(),
+  searchPath: z.string().optional(),
   mime: z.string().optional(),
   minSize: z.string().regex(/^\d+$/).transform(Number).optional(),
   maxSize: z.string().regex(/^\d+$/).transform(Number).optional(),

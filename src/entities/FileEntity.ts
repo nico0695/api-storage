@@ -20,6 +20,9 @@ export class FileEntity {
   @Column()
   key!: string;
 
+  @Column({ type: 'text', nullable: true })
+  path!: string | null;
+
   @Column()
   mime!: string;
 
