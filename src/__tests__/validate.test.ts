@@ -2,6 +2,7 @@ import {
   createShareLinkSchema,
   listFilesQuerySchema,
   accessShareLinkSchema,
+  escapeLikeString,
 } from '../utils/validate.js';
 
 describe('validation schemas', () => {
@@ -33,5 +34,36 @@ describe('validation schemas', () => {
       token: 'invalid-token',
     });
     expect(result.success).toBe(false);
+  });
+});
+
+describe('escapeLikeString', () => {
+  it('escapes % wildcard character', () => {
+    expect(escapeLikeString('test%value')).toBe('test\\%value');
+  });
+
+  it('escapes _ wildcard character', () => {
+    expect(escapeLikeString('test_value')).toBe('test\\_value');
+  });
+
+  it('escapes backslash character', () => {
+    expect(escapeLikeString('test\\value')).toBe('test\\\\value');
+  });
+
+  it('escapes multiple special characters', () => {
+    expect(escapeLikeString('%_test_%_value_\\%')).toBe('\\%\\_test\\_\\%\\_value\\_\\\\\\%');
+  });
+
+  it('returns unchanged string when no special characters present', () => {
+    expect(escapeLikeString('normaltext')).toBe('normaltext');
+  });
+
+  it('handles empty string', () => {
+    expect(escapeLikeString('')).toBe('');
+  });
+
+  it('prevents wildcard injection attack', () => {
+    const maliciousInput = '%';
+    expect(escapeLikeString(maliciousInput)).toBe('\\%');
   });
 });
