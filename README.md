@@ -1,18 +1,8 @@
 # API Storage - File Storage with Backblaze B2
 
-A minimal Express API for uploading, listing, and deleting files using Backblaze B2 (S3-compatible storage) with local SQLite metadata storage.
+A minimal Express API for uploading, listing, and deleting files using Backblaze B2 (S3-compatible storage) with local SQLite metadata storage. Supports multi-tenant file isolation, folder paths, file sharing links, and advanced search with pagination.
 
-## 📋 Project Summary
-
-This is a lightweight file storage API that:
-- Uploads files to **Backblaze B2** cloud storage
-- Stores file metadata (name, size, MIME type, etc.) in a local **SQLite** database
-- Provides REST endpoints for file management
-- Uses **TypeScript** for type safety
-- Implements input validation with **Zod**
-- Includes structured logging with **Pino**
-
-## 🛠 Tech Stack
+## Tech Stack
 
 - **Express** - REST API framework
 - **@aws-sdk/client-s3** - S3-compatible client for Backblaze B2
@@ -20,32 +10,44 @@ This is a lightweight file storage API that:
 - **Multer** - Multipart file upload handling
 - **Zod** - Schema validation
 - **Pino** - JSON logging
+- **bcrypt** - Password hashing for share links
 - **TypeScript** - Type-safe development
 
-## 📁 Project Structure
+## Project Structure
 
 ```
 api-storage/
 ├── src/
 │   ├── entities/
-│   │   └── FileEntity.ts         # TypeORM entity for file metadata
+│   │   ├── FileEntity.ts         # TypeORM entity for file metadata
+│   │   └── ShareLinkEntity.ts    # TypeORM entity for share links
 │   ├── routes/
-│   │   └── files.route.ts        # Upload/list/delete endpoints
+│   │   ├── files.route.ts        # Upload/list/get/delete + share creation
+│   │   └── share.route.ts        # Public share access + revocation
 │   ├── services/
 │   │   └── storage.service.ts    # S3/B2 operations wrapper
+│   ├── middleware/
+│   │   └── auth.middleware.ts     # API key authentication
 │   ├── utils/
-│   │   └── validate.ts           # Zod validation schemas
+│   │   ├── validate.ts           # Zod schemas + path normalization
+│   │   ├── generate-key.ts       # API key & share token generation
+│   │   └── logger.ts             # Pino logger configuration
 │   ├── data/
 │   │   └── database.sqlite       # SQLite database (auto-created)
 │   ├── app.ts                    # Express setup & middleware
+│   ├── data-source.ts            # TypeORM data source config
 │   └── server.ts                 # Entry point
-├── .env                          # Environment variables (create from .env.example)
+├── docs/
+│   ├── API-KEYS.md               # API key management documentation
+│   ├── SHARE-LINKS.md            # Share links documentation
+│   └── SEARCH-FILTERS.md         # Search, filters & pagination docs
+├── .env                          # Environment variables
 ├── .env.example                  # Environment template
 ├── package.json
 └── tsconfig.json
 ```
 
-## 🚀 Getting Started
+## Getting Started
 
 ### 1. Install Dependencies
 
@@ -54,8 +56,6 @@ npm install
 ```
 
 ### 2. Configure Environment Variables
-
-Copy `.env.example` to `.env` and fill in your Backblaze B2 credentials:
 
 ```bash
 cp .env.example .env
@@ -69,13 +69,8 @@ B2_ENDPOINT=https://s3.us-west-002.backblazeb2.com
 B2_KEY_ID=your_actual_key_id
 B2_APP_KEY=your_actual_app_key
 B2_BUCKET=your_bucket_name
+BASE_URL=https://your-domain.com   # Optional: used for share link URLs
 ```
-
-**How to get B2 credentials:**
-1. Sign up at [Backblaze B2](https://www.backblaze.com/b2/cloud-storage.html)
-2. Create a bucket
-3. Generate application keys with read/write permissions
-4. Note your endpoint region
 
 ### 3. Run the Server
 
@@ -90,101 +85,111 @@ npm run build
 npm start
 ```
 
-The server will start on `http://localhost:4000`
+## Authentication
 
-## 🔐 Authentication
-
-All file management endpoints require API key authentication via the `X-API-Key` header.
-
-### Quick Setup
-
-1. **Create an API key:**
-   ```bash
-   npm run key:add -- --name "my-app"
-   ```
-
-2. **Copy the generated key** (shown only once)
-
-3. **Use in requests:**
-   ```bash
-   curl http://localhost:4000/files \
-     -H "X-API-Key: sk_your_generated_key_here"
-   ```
-
-### Management Commands
+All file management endpoints require API key authentication via the `X-API-Key` header. Each API key identifies a user/tenant and isolates their files.
 
 ```bash
-npm run key:list              # List all API keys
-npm run key:add -- --name "app-name"   # Create new key
-npm run key:disable -- --id 1 # Disable a key
-npm run key:enable -- --id 1  # Enable a key
-npm run key:delete -- --id 1  # Delete a key
-npm run key:help              # Show help
+# Create an API key
+npm run key:add -- --name "my-app"
+
+# Use in requests
+curl http://localhost:4000/files \
+  -H "X-API-Key: sk_your_generated_key_here"
 ```
 
-**For detailed documentation**, including usage examples for Next.js and Node.js, see [API-KEYS.md](./API-KEYS.md).
+**For detailed API key management**, see [docs/API-KEYS.md](./docs/API-KEYS.md).
 
-## 🔌 API Endpoints
+## File Isolation & Storage Structure
 
-### 1. Health Check
+Files are isolated per API key (user/tenant). The storage key in B2 follows this structure:
+
+```
+{apiKeyId}/{path}/{timestamp}-{filename}
+```
+
+- Each API key can only access its own files
+- Attempting to access another user's file returns `403 Forbidden`
+- The `path` field is optional and allows organizing files in virtual folders
+
+## API Endpoints
+
+### Health Check
 ```
 GET /health
 ```
 
-**Response:**
-```json
-{
-  "status": "ok",
-  "timestamp": "2025-10-24T12:00:00.000Z"
-}
-```
-
-### 2. Upload File
+### Upload File
 ```
 POST /files/upload
 Content-Type: multipart/form-data
+X-API-Key: required
 ```
 
-**Request:**
-- Send file as `multipart/form-data` with field name `file`
-- Optional: `customName` - Custom name for the file
-- Optional: `metadata` - JSON metadata (as string)
+**Fields:**
+- `file` (required) - The file to upload
+- `customName` (optional) - Custom display name
+- `path` (optional) - Virtual folder path (e.g. `images/avatars`)
+- `metadata` (optional) - JSON metadata string
 
-**Example using curl:**
+**Path rules:**
+- Allowed characters: letters, numbers, `/`, `_`, `-`
+- Cannot contain `..` or consecutive slashes `//`
+- Leading/trailing slashes are stripped automatically
+
+**Example:**
 ```bash
 curl -X POST http://localhost:4000/files/upload \
   -H "X-API-Key: your_api_key_here" \
-  -F "file=@/path/to/your/file.jpg" \
-  -F "customName=My Custom File Name" \
-  -F 'metadata={"author": "John Doe", "tags": ["important"]}'
+  -F "file=@/path/to/photo.jpg" \
+  -F "customName=Profile Photo" \
+  -F "path=images/avatars" \
+  -F 'metadata={"author": "John"}'
 ```
-
-**Example using Postman:**
-- Method: POST
-- URL: `http://localhost:4000/files/upload`
-- Body: form-data
-  - Key: `file` (type: File) - Select your file
-  - Key: `customName` (type: Text) - Optional custom name
-  - Key: `metadata` (type: Text) - Optional JSON metadata
 
 **Response:**
 ```json
 {
   "id": 1,
-  "name": "example.jpg",
-  "customName": "My Custom File Name",
-  "key": "1729776000000-example.jpg",
+  "name": "photo.jpg",
+  "customName": "Profile Photo",
+  "key": "1/images/avatars/1729776000000-photo.jpg",
+  "path": "images/avatars",
+  "fullPath": "images/avatars/photo.jpg",
   "mime": "image/jpeg",
   "size": 125648,
-  "metadata": {"author": "John Doe", "tags": ["important"]},
+  "metadata": {"author": "John"},
   "createdAt": "2025-10-24T12:00:00.000Z",
   "updatedAt": "2025-10-24T12:00:00.000Z"
 }
 ```
 
-### 3. List Files
+### List Files
 ```
 GET /files
+X-API-Key: required
+```
+
+Returns only files belonging to the authenticated user. Supports search, filters, and pagination.
+
+**Query Parameters:**
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `search` | string | Search by filename (case-insensitive) |
+| `searchPath` | string | Search by path (case-insensitive) |
+| `mime` | string | Filter by exact MIME type |
+| `minSize` | number | Minimum file size in bytes |
+| `maxSize` | number | Maximum file size in bytes |
+| `dateFrom` | ISO 8601 | Filter by creation date (from) |
+| `dateTo` | ISO 8601 | Filter by creation date (to) |
+| `page` | number | Page number (default: 1) |
+| `limit` | number | Results per page (default: 50) |
+
+**Example:**
+```bash
+curl "http://localhost:4000/files?search=photo&mime=image/jpeg&page=1&limit=20" \
+  -H "X-API-Key: your_api_key_here"
 ```
 
 **Response:**
@@ -193,164 +198,75 @@ GET /files
   "files": [
     {
       "id": 1,
-      "name": "example.jpg",
-      "customName": "My Custom File Name",
-      "key": "1729776000000-example.jpg",
+      "name": "photo.jpg",
+      "customName": "Profile Photo",
+      "key": "1/images/avatars/1729776000000-photo.jpg",
+      "path": "images/avatars",
+      "fullPath": "images/avatars/photo.jpg",
       "mime": "image/jpeg",
       "size": 125648,
-      "metadata": {"author": "John Doe", "tags": ["important"]},
+      "metadata": {"author": "John"},
       "createdAt": "2025-10-24T12:00:00.000Z",
-      "updatedAt": "2025-10-24T12:00:00.000Z"
+      "updatedAt": "2025-10-24T12:00:00.000Z",
+      "shareLinks": []
     }
-  ]
+  ],
+  "pagination": {
+    "page": 1,
+    "limit": 20,
+    "total": 150,
+    "totalPages": 8
+  }
 }
 ```
 
-### 4. Get File Details
+### Get File Details
 ```
 GET /files/:id
+X-API-Key: required
 ```
 
-**Example:**
-```bash
-curl http://localhost:4000/files/1 \
-  -H "X-API-Key: your_api_key_here"
-```
+Returns file metadata, a presigned download URL (valid for 1 hour), and active share links.
 
 **Response:**
 ```json
 {
   "id": 1,
-  "name": "example.jpg",
-  "customName": "My Custom File Name",
-  "key": "1729776000000-example.jpg",
+  "name": "photo.jpg",
+  "customName": "Profile Photo",
+  "key": "1/images/avatars/1729776000000-photo.jpg",
+  "path": "images/avatars",
+  "fullPath": "images/avatars/photo.jpg",
   "mime": "image/jpeg",
   "size": 125648,
-  "metadata": {"author": "John Doe", "tags": ["important"]},
+  "metadata": {"author": "John"},
   "createdAt": "2025-10-24T12:00:00.000Z",
   "updatedAt": "2025-10-24T12:00:00.000Z",
-  "downloadUrl": "https://s3.us-east-005.backblazeb2.com/your-bucket/1729776000000-example.jpg?X-Amz-Algorithm=..."
+  "downloadUrl": "https://s3.backblaze.com/...?X-Amz-Algorithm=...",
+  "shareLinks": []
 }
 ```
 
-**Note:** The `downloadUrl` is a presigned URL valid for 1 hour (3600 seconds) that allows direct download of the file from Backblaze B2.
-
-### 5. Delete File
+### Delete File
 ```
 DELETE /files/:id
+X-API-Key: required
 ```
 
-**Example:**
-```bash
-curl -X DELETE http://localhost:4000/files/1 \
-  -H "X-API-Key: your_api_key_here"
-```
+Deletes the file from B2 storage and removes the database record. Only the file owner can delete it.
 
-**Response:**
-```json
-{
-  "message": "File deleted successfully"
-}
-```
+### Share Links
 
-## 📝 How It Works
+Create and manage public share links for files. See [docs/SHARE-LINKS.md](./docs/SHARE-LINKS.md) for full documentation.
 
-1. **Upload Flow:**
-   - Client sends file via multipart form-data with optional customName and metadata
-   - Multer processes the upload and stores in memory
-   - Zod validates file metadata and optional fields
-   - File is uploaded to Backblaze B2 with unique key
-   - Metadata (including customName and metadata JSON) is saved to SQLite database
-   - Response includes file details with all fields
+| Endpoint | Auth | Description |
+|----------|------|-------------|
+| `POST /files/:id/share` | API Key | Create share link |
+| `GET /files/:id/shares` | API Key | List share links for a file |
+| `GET /share/:token` | Public | Access shared file |
+| `DELETE /share/:token` | API Key | Revoke share link |
 
-2. **List Flow:**
-   - Retrieves all file metadata from SQLite
-   - Returns array of files sorted by creation date with all fields
-
-3. **Get File Details Flow:**
-   - Validates file ID
-   - Retrieves file record from database
-   - Generates a presigned download URL (valid for 1 hour)
-   - Returns file details including download URL
-
-4. **Delete Flow:**
-   - Validates file ID
-   - Finds file record in database
-   - Deletes file from B2 using stored key
-   - Removes database record
-
-## 🔒 Features
-
-- **Custom File Names:** Optional custom names for better file organization
-- **Flexible Metadata:** Store arbitrary JSON metadata with each file
-- **Presigned URLs:** Generate secure, time-limited download URLs
-- **File Sharing Links:** Create public, secure share links with expiration and optional passwords ([docs](./SHARE-LINKS.md))
-- **Search & Filters:** Advanced file search with pagination ([docs](./FRONTEND-SEARCH-FILTERS.md))
-- **Input Validation:** Zod schemas validate all inputs including optional fields
-- **Error Handling:** Comprehensive error handling with proper HTTP status codes
-- **Logging:** Structured JSON logs via Pino for debugging
-- **Type Safety:** Full TypeScript coverage
-- **Unique Keys:** Files stored with timestamp-prefixed keys to avoid collisions
-- **Database Auto-sync:** TypeORM automatically creates tables on startup
-- **Automatic Timestamps:** Track creation and update times for all files
-
-## 🧪 Testing the API
-
-**Note:** All commands require an API key. Create one first: `npm run key:add -- --name "test"`
-
-**Upload a file with custom name and metadata:**
-```bash
-curl -X POST http://localhost:4000/files/upload \
-  -H "X-API-Key: your_api_key_here" \
-  -F "file=@./test-image.jpg" \
-  -F "customName=My Test Image" \
-  -F 'metadata={"author": "John Doe", "project": "test"}'
-```
-
-**Upload a file without optional fields:**
-```bash
-curl -X POST http://localhost:4000/files/upload \
-  -H "X-API-Key: your_api_key_here" \
-  -F "file=@./test-image.jpg"
-```
-
-**List all files:**
-```bash
-curl http://localhost:4000/files \
-  -H "X-API-Key: your_api_key_here"
-```
-
-**Get file details with download URL:**
-```bash
-curl http://localhost:4000/files/1 \
-  -H "X-API-Key: your_api_key_here"
-```
-
-**Delete a file (replace 1 with actual ID):**
-```bash
-curl -X DELETE http://localhost:4000/files/1 \
-  -H "X-API-Key: your_api_key_here"
-```
-
-## 🚢 Deployment
-
-This API is designed to run on a small VPS or cloud instance:
-
-1. Clone repository on server
-2. Install dependencies: `npm install`
-3. Configure `.env` with production credentials
-4. Build: `npm run build`
-5. Run: `npm start` or use a process manager like PM2
-
-**Using PM2:**
-```bash
-npm install -g pm2
-pm2 start dist/server.js --name api-storage
-pm2 save
-pm2 startup
-```
-
-## 📦 Environment Variables
+## Environment Variables
 
 | Variable | Description | Example |
 |----------|-------------|---------|
@@ -360,23 +276,30 @@ pm2 startup
 | `B2_KEY_ID` | Application key ID | Your key ID |
 | `B2_APP_KEY` | Application key secret | Your app key |
 | `B2_BUCKET` | Bucket name | Your bucket name |
+| `BASE_URL` | Base URL for share links (optional) | `https://your-domain.com` |
 
-## 🐛 Troubleshooting
+## Testing
 
-**Database errors:**
-- Ensure `src/data/` directory has write permissions
-- Check SQLite is properly installed
+```bash
+# Run tests
+npm test
+```
 
-**B2 connection errors:**
-- Verify credentials in `.env`
-- Check endpoint URL matches your bucket region
-- Ensure bucket has correct permissions
+## Deployment
 
-**Upload failures:**
-- Check file size limits (default 50MB in Express config)
-- Verify MIME type is supported
-- Check B2 bucket has sufficient storage
+1. Clone repository on server
+2. Install dependencies: `npm install`
+3. Configure `.env` with production credentials
+4. Build: `npm run build`
+5. Run: `npm start` or use a process manager like PM2
 
-## 📄 License
+```bash
+npm install -g pm2
+pm2 start dist/server.js --name api-storage
+pm2 save
+pm2 startup
+```
+
+## License
 
 ISC
